@@ -15,34 +15,6 @@ const pool = new Pool({
 });
 
 // ==========================================
-// 1. SERVICIO DE REGISTRO
-// Registra usuario y correo. Regresa el ID.
-// ==========================================
-app.post('/api/register', async (req, res) => {
-    const { email } = req.body;
-
-    if (!email) {
-        return res.status(400).json({ error: 'El email es obligatorio' });
-    }
-
-    try {
-        const query = 'INSERT INTO users (email) VALUES ($1) RETURNING id';
-        const result = await pool.query(query, [email]);
-
-        res.status(201).json({
-            message: 'Usuario registrado exitosamente',
-            userId: result.rows[0].id
-        });
-    } catch (error) {
-        console.error(error);
-        if (error.code === '23505') { // Código de error de Postgres para valor duplicado
-            return res.status(409).json({ error: 'El correo ya está registrado' });
-        }
-        res.status(500).json({ error: 'Error interno del servidor' });
-    }
-});
-
-// ==========================================
 // 2. SERVICIO GENERADOR DE CÓDIGO
 // Genera código de 8 dígitos, verifica email y llama webhook.
 // ==========================================
@@ -96,46 +68,6 @@ async function mockEmailWebhook(email, code) {
     console.log(`--------------------\n`);
     await fetch(`https://n8n.paas.oracle-mty1.juanlopez.dev/webhook/correo?email=${email}&code=${code}`)
 }
-
-// ==========================================
-// 3. SERVICIO DE CONFIRMACIÓN
-// Confirma con email y código.
-// ==========================================
-app.post('/api/confirm', async (req, res) => {
-    const { email, code } = req.body;
-
-    if (!email || !code) {
-        return res.status(400).json({ error: 'Email y código son obligatorios' });
-    }
-
-    try {
-        // Busca usuario con ese email y código.
-        // Si encuentra, actualiza 'confirmed' a true.
-        const query = `
-      UPDATE users 
-      SET confirmed = TRUE 
-      WHERE email = $1 AND verification_code = $2 
-      RETURNING id, confirmed
-    `;
-
-        const result = await pool.query(query, [email, code]);
-
-        if (result.rows.length === 0) {
-            return res.status(400).json({
-                error: 'Falló la confirmación. El código es incorrecto o el email no coincide.'
-            });
-        }
-
-        res.json({
-            message: 'Cuenta confirmada exitosamente',
-            status: 'confirmed'
-        });
-
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error al confirmar usuario' });
-    }
-});
 
 // Iniciar servidor
 const PORT = 3000;
